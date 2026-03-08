@@ -346,9 +346,18 @@ class SettingsPage(QtWidgets.QWidget):
         return source_lang
 
     def _download_selected_local_models_impl(self):
-        detector_key = self.get_tool_selection('detector')
-        ocr_key = self.get_tool_selection('ocr')
-        inpainter_key = self.get_tool_selection('inpainter')
+        detector_key = self.ui.value_mappings.get(
+            self.get_tool_selection('detector'),
+            self.get_tool_selection('detector'),
+        )
+        ocr_key = self.ui.value_mappings.get(
+            self.get_tool_selection('ocr'),
+            self.get_tool_selection('ocr'),
+        )
+        inpainter_key = self.ui.value_mappings.get(
+            self.get_tool_selection('inpainter'),
+            self.get_tool_selection('inpainter'),
+        )
         source_lang_english = self._resolve_current_source_language_english()
         model_ids, notes = get_local_model_download_plan(
             detector_key,

@@ -40,7 +40,7 @@ class MIGAN(InpaintModel):
 
     @staticmethod
     def is_downloaded() -> bool:
-        return ModelDownloader.is_downloaded(ModelID.MIGAN_JIT)
+        return ModelDownloader.is_downloaded(ModelID.MIGAN_PIPELINE_ONNX)
 
     def __call__(self, image, mask, config: Config):
         """
