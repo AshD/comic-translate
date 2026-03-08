@@ -60,10 +60,18 @@ class OCRProcessor:
 
     def _get_ocr_key(self, localized_ocr: str) -> str:
         translator_map = {
+            self.settings.ui.tr('Default'): 'Default',
+            self.settings.ui.tr('Manga OCR'): 'Manga OCR',
+            self.settings.ui.tr('Pororo OCR'): 'Pororo OCR',
+            self.settings.ui.tr('PP-OCRv5 English'): 'PP-OCRv5 English',
+            self.settings.ui.tr('PP-OCRv5 Chinese'): 'PP-OCRv5 Chinese',
+            self.settings.ui.tr('PP-OCRv5 Korean'): 'PP-OCRv5 Korean',
+            self.settings.ui.tr('PP-OCRv5 Latin'): 'PP-OCRv5 Latin',
+            self.settings.ui.tr('PP-OCRv5 Russian'): 'PP-OCRv5 Russian',
+            self.settings.ui.tr('PP-OCRv5 Server (Chinese)'): 'PP-OCRv5 Server (Chinese)',
             self.settings.ui.tr('GPT-4.1-mini'): 'GPT-4.1-mini',
             self.settings.ui.tr('Microsoft OCR'): 'Microsoft OCR',
             self.settings.ui.tr('Google Cloud Vision'): 'Google Cloud Vision',
             self.settings.ui.tr('Gemini-2.0-Flash'): 'Gemini-2.0-Flash',
-            self.settings.ui.tr('Default'): 'Default',
         }
         return translator_map.get(localized_ocr, localized_ocr)

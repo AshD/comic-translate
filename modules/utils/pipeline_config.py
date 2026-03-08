@@ -18,7 +18,14 @@ inpaint_map = {
     "AOT": AOT,
 }
 
-REMOTE_OCR_TOOLS = {"Gemini-2.0-Flash", "Microsoft OCR"}
+REMOTE_OCR_TOOLS = {"Gemini-2.0-Flash", "Microsoft OCR", "Google Cloud Vision", "GPT-4.1-mini"}
+
+OCR_CREDENTIAL_REQUIREMENTS = {
+    "Microsoft OCR": ("Microsoft Azure", ("api_key_ocr", "endpoint"), "an OCR API key and endpoint URL"),
+    "Google Cloud Vision": ("Google Cloud", ("api_key",), "an API key"),
+    "GPT-4.1-mini": ("Open AI GPT", ("api_key",), "an API key"),
+    "Gemini-2.0-Flash": ("Google Gemini", ("api_key",), "an API key"),
+}
 
 def get_config(settings_page: SettingsPage):
     strategy_settings = settings_page.get_hd_strategy_settings()
@@ -33,18 +40,26 @@ def get_config(settings_page: SettingsPage):
     return config
 
 def validate_ocr(main: ComicTranslate):
-    """Ensure either API credentials are set or the user is authenticated."""
+    """Ensure OCR tool selection and any required credentials are configured."""
     settings_page = main.settings_page
     settings = settings_page.get_all_settings()
     ocr_tool = settings['tools']['ocr']
+    credentials = settings.get('credentials', {})
 
     if not ocr_tool:
         Messages.show_missing_tool_error(main, QCoreApplication.translate("Messages", "Text Recognition model"))
         return False
 
-    # Local OCR should work without an account. Only hosted OCR tools require login.
-    if ocr_tool in REMOTE_OCR_TOOLS and not settings_page.is_logged_in():
-        Messages.show_not_logged_in_error(main)
+    if ocr_tool not in REMOTE_OCR_TOOLS:
+        return True
+
+    service_name, required_fields, requirement_text = OCR_CREDENTIAL_REQUIREMENTS.get(ocr_tool, (None, (), "credentials"))
+    if not service_name:
+        return True
+
+    service_credentials = credentials.get(service_name, {})
+    if not all(service_credentials.get(field) for field in required_fields):
+        Messages.show_service_not_configured_error(main, ocr_tool, requirement_text)
         return False
 
     return True

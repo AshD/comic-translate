@@ -2,7 +2,7 @@ import os, shutil
 import logging
 from dataclasses import asdict, is_dataclass
 
-from PySide6 import QtWidgets, QtGui
+from PySide6 import QtWidgets, QtGui, QtCore
 from PySide6.QtCore import Signal, QSettings, Qt
 from PySide6.QtGui import QFont, QFontDatabase
 
@@ -10,6 +10,9 @@ from .settings_ui import SettingsPageUI
 from modules.utils.device import is_gpu_available
 from app.update_checker import UpdateChecker
 from modules.utils.paths import get_user_data_dir, get_default_project_autosave_dir
+from modules.utils.download import ModelDownloader
+from modules.utils.model_catalog import get_local_model_download_plan
+from app.thread_worker import GenericWorker
 
 
 logger = logging.getLogger(__name__)
@@ -49,6 +52,7 @@ class SettingsPage(QtWidgets.QWidget):
         self.ui.lang_combo.currentTextChanged.connect(self.on_language_changed)
         self.ui.font_browser.sig_files_changed.connect(self.import_font)
         self.ui.check_update_button.clicked.connect(self.check_for_updates)
+        self.ui.download_selected_models_button.clicked.connect(self.download_selected_local_models)
 
     def on_theme_changed(self, theme: str):
         self.theme_changed.emit(theme)
@@ -106,22 +110,18 @@ class SettingsPage(QtWidgets.QWidget):
     def get_credentials(self, service: str = ""):
         save_keys = self.ui.save_keys_checkbox.isChecked()
 
-        def _text_or_none(widget_key):
-            w = self.ui.credential_widgets.get(widget_key)
-            return w.text() if w is not None else None
-
         if service:
             normalized = self.ui.value_mappings.get(service, service)
             creds = {'save_key': save_keys}
-            if normalized == "Custom":
-                for field in ("api_key", "api_url", "model"):
-                    creds[field] = _text_or_none(f"Custom_{field}")
-
+            prefix = f"{normalized}_"
+            for widget_key, widget in self.ui.credential_widgets.items():
+                if widget_key.startswith(prefix):
+                    field = widget_key[len(prefix):]
+                    creds[field] = widget.text()
             return creds
 
-        # no `service` passed → recurse over all known services
         return {s: self.get_credentials(s) for s in self.ui.credential_services}
-        
+
     def get_hd_strategy_settings(self):
         strategy = self.ui.inpaint_strategy_combo.currentText()
         settings = {
@@ -226,13 +226,8 @@ class SettingsPage(QtWidgets.QWidget):
         settings.beginGroup('credentials')
         settings.setValue('save_keys', save_keys)
         if save_keys:
-            for service, cred in credentials.items():
-                translated_service = self.ui.value_mappings.get(service, service)
-                
-                if translated_service == "Custom":
-                    settings.setValue(f"{translated_service}_api_key", cred['api_key'])
-                    settings.setValue(f"{translated_service}_api_url", cred['api_url'])
-                    settings.setValue(f"{translated_service}_model", cred['model'])
+            for widget_key, widget in self.ui.credential_widgets.items():
+                settings.setValue(widget_key, widget.text())
         else:
             settings.remove('credentials')  # Clear all credentials if save_keys is unchecked
         settings.endGroup()
@@ -333,16 +328,70 @@ class SettingsPage(QtWidgets.QWidget):
         settings.beginGroup('credentials')
         save_keys = settings.value('save_keys', False, type=bool)
         self.ui.save_keys_checkbox.setChecked(save_keys)
-        if save_keys:
-            for service in self.ui.credential_services:
-                translated_service = self.ui.value_mappings.get(service, service)
-                
-                if translated_service == "Custom":
-                    self.ui.credential_widgets[f"{translated_service}_api_key"].setText(settings.value(f"{translated_service}_api_key", ''))
-                    self.ui.credential_widgets[f"{translated_service}_api_url"].setText(settings.value(f"{translated_service}_api_url", ''))
-                    self.ui.credential_widgets[f"{translated_service}_model"].setText(settings.value(f"{translated_service}_model", ''))
+        for widget_key, widget in self.ui.credential_widgets.items():
+            widget.setText(settings.value(widget_key, '') if save_keys else '')
         settings.endGroup()
         self._loading_settings = False
+
+    def _resolve_current_source_language_english(self) -> str:
+        owner = self.window()
+        source_lang = 'English'
+        if owner is not None and hasattr(owner, 's_combo'):
+            try:
+                source_lang = owner.s_combo.currentText() or source_lang
+            except Exception:
+                pass
+        if owner is not None and hasattr(owner, 'lang_mapping'):
+            return owner.lang_mapping.get(source_lang, source_lang)
+        return source_lang
+
+    def _download_selected_local_models_impl(self):
+        detector_key = self.get_tool_selection('detector')
+        ocr_key = self.get_tool_selection('ocr')
+        inpainter_key = self.get_tool_selection('inpainter')
+        source_lang_english = self._resolve_current_source_language_english()
+        model_ids, notes = get_local_model_download_plan(
+            detector_key,
+            ocr_key,
+            inpainter_key,
+            source_lang_english,
+        )
+        if model_ids:
+            ModelDownloader.ensure(model_ids)
+        return {
+            'model_count': len(model_ids),
+            'notes': notes,
+        }
+
+    def download_selected_local_models(self):
+        self.ui.download_selected_models_button.setEnabled(False)
+        self.ui.download_selected_models_button.setText(self.tr('Downloading...'))
+        self.ui.model_download_status_label.setText(self.tr('Downloading local model files for the current detector, OCR, and inpainter selection.'))
+
+        self._model_download_worker = GenericWorker(self._download_selected_local_models_impl)
+        self._model_download_worker.signals.result.connect(self._on_selected_model_download_finished)
+        self._model_download_worker.signals.error.connect(self._on_selected_model_download_error)
+        self._model_download_worker.signals.finished.connect(self._on_selected_model_download_cleanup)
+        QtCore.QThreadPool.globalInstance().start(self._model_download_worker)
+
+    def _on_selected_model_download_finished(self, result):
+        notes = result.get('notes', []) if isinstance(result, dict) else []
+        model_count = int(result.get('model_count', 0)) if isinstance(result, dict) else 0
+        status = self.tr('Selected local models are ready.') if model_count else self.tr('No local model downloads were needed for the current selection.')
+        if notes:
+            status = status + "\n" + "\n".join(notes)
+        self.ui.model_download_status_label.setText(status)
+
+    def _on_selected_model_download_error(self, error_tuple):
+        _, value, _ = error_tuple
+        self.ui.model_download_status_label.setText(
+            self.tr('Model download failed: {0}').format(str(value))
+        )
+
+    def _on_selected_model_download_cleanup(self):
+        self.ui.download_selected_models_button.setEnabled(True)
+        self.ui.download_selected_models_button.setText(self.tr('Download Selected Local Models'))
+        self._model_download_worker = None
 
     def on_language_changed(self, new_language):
         if not self._loading_settings:  

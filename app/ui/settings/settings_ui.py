@@ -15,6 +15,7 @@ from .text_rendering_page import TextRenderingPage
 from .project_page import ProjectPage
 from .export_page import ExportPage
 from .about_page import AboutPage
+from modules.utils.model_catalog import DETECTOR_CHOICES, OCR_CHOICES, INPAINTER_CHOICES
 
 
 class CurrentPageStack(QtWidgets.QStackedWidget):
@@ -51,17 +52,19 @@ class SettingsPageUI(QtWidgets.QWidget):
 
         self.credential_widgets = {}
 
-        self.inpainters = ['LaMa', 'AOT']
-        self.detectors = ['RT-DETR-v2']
-        self.ocr_engines = [
-            self.tr("Default"),
-        ]
+        self.inpainters = list(INPAINTER_CHOICES)
+        self.detectors = list(DETECTOR_CHOICES)
+        self.ocr_engines = [self.tr(choice) for choice in OCR_CHOICES]
         self.inpaint_strategy = [self.tr('Resize'), self.tr('Original'), self.tr('Crop')]
         self.themes = [self.tr('Dark'), self.tr('Light')]
         self.alignment = [self.tr("Left"), self.tr("Center"), self.tr("Right")]
 
         self.credential_services = [
-            self.tr("Custom"), 
+            self.tr("Custom"),
+            self.tr("Open AI GPT"),
+            self.tr("Google Cloud"),
+            self.tr("Google Gemini"),
+            self.tr("Microsoft Azure"),
         ]
         
         self.supported_translators = [
@@ -114,11 +117,22 @@ class SettingsPageUI(QtWidgets.QWidget):
 
             # OCR mappings
             self.tr("Default"): "Default",
+            self.tr("Manga OCR"): "Manga OCR",
+            self.tr("Pororo OCR"): "Pororo OCR",
+            self.tr("PP-OCRv5 English"): "PP-OCRv5 English",
+            self.tr("PP-OCRv5 Chinese"): "PP-OCRv5 Chinese",
+            self.tr("PP-OCRv5 Korean"): "PP-OCRv5 Korean",
+            self.tr("PP-OCRv5 Latin"): "PP-OCRv5 Latin",
+            self.tr("PP-OCRv5 Russian"): "PP-OCRv5 Russian",
+            self.tr("PP-OCRv5 Server (Chinese)"): "PP-OCRv5 Server (Chinese)",
+            self.tr("GPT-4.1-mini"): "GPT-4.1-mini",
             self.tr("Microsoft OCR"): "Microsoft OCR",
             self.tr("Google Cloud Vision"): "Google Cloud Vision",
+            self.tr("Gemini-2.0-Flash"): "Gemini-2.0-Flash",
 
             # Inpainter mappings
             "LaMa": "LaMa",
+            "MI-GAN": "MI-GAN",
             "AOT": "AOT",
 
             # Detector mappings
@@ -199,6 +213,8 @@ class SettingsPageUI(QtWidgets.QWidget):
         self.crop_margin_spinbox = self.tools_page.crop_margin_spinbox
         self.crop_trigger_spinbox = self.tools_page.crop_trigger_spinbox
         self.use_gpu_checkbox = self.tools_page.use_gpu_checkbox
+        self.download_selected_models_button = self.tools_page.download_selected_models_button
+        self.model_download_status_label = self.tools_page.model_download_status_label
 
         # Credentials
         self.save_keys_checkbox = self.credentials_page.save_keys_checkbox

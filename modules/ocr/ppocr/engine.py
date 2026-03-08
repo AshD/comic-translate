@@ -44,11 +44,15 @@ class PPOCRv5Engine(OCREngine):
 		self, 
 		lang: str = 'ch', 
 		device: str = 'cpu', 
-		det_model: str = 'mobile'
+		det_model: str = 'mobile',
+		rec_model: str = 'mobile'
 	) -> None:
 		# Ensure models present
 		det_id = ModelID.PPOCR_V5_DET_MOBILE if det_model == 'mobile' else ModelID.PPOCR_V5_DET_SERVER
-		rec_id = LANG_TO_REC_MODEL.get(lang, ModelID.PPOCR_V5_REC_LATIN_MOBILE)
+		if rec_model == 'server' and lang == 'ch':
+			rec_id = ModelID.PPOCR_V5_REC_SERVER
+		else:
+			rec_id = LANG_TO_REC_MODEL.get(lang, ModelID.PPOCR_V5_REC_LATIN_MOBILE)
 		ModelDownloader.ensure([det_id, rec_id])
 
 		# Load ONNX sessions

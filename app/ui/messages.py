@@ -105,6 +105,19 @@ class Messages:
             closable=True
         )
 
+
+    @staticmethod
+    def show_service_not_configured_error(parent, service_name: str, requirements: str = "credentials"):
+        MMessage.error(
+            text=QCoreApplication.translate(
+                "Messages",
+                "{0} requires configured {1}.\nConfigure them in Settings > Credentials before running."
+            ).format(service_name, requirements),
+            parent=parent,
+            duration=None,
+            closable=True
+        )
+
     @staticmethod
     def show_error_with_copy(parent, title: str, text: str, detailed_text: str | None = None):
         """

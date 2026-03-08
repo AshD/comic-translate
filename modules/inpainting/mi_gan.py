@@ -22,10 +22,11 @@ class MIGAN(InpaintModel):
     pad_mod = 512
     pad_to_square = True
     is_erase_model = True
-    use_pipeline_for_onnx = False
+    use_pipeline_for_onnx = True
 
     def init_model(self, device, **kwargs):
         self.backend = kwargs.get("backend")
+        self.use_pipeline = self.use_pipeline_for_onnx
         if self.backend == "onnx":
             model_id = ModelID.MIGAN_PIPELINE_ONNX if self.use_pipeline_for_onnx else ModelID.MIGAN_ONNX
             ModelDownloader.get(model_id)

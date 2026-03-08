@@ -2,17 +2,24 @@ from PySide6 import QtWidgets
 from ..dayu_widgets.label import MLabel
 from ..dayu_widgets.check_box import MCheckBox
 from ..dayu_widgets.spin_box import MSpinBox
+from ..dayu_widgets.push_button import MPushButton
 from .utils import create_title_and_combo, set_combo_box_width
 from modules.utils.device import is_gpu_available
+from modules.utils.model_catalog import (
+    get_detector_help,
+    get_ocr_help,
+    get_inpainter_help,
+)
+
 
 class ToolsPage(QtWidgets.QWidget):
     def __init__(
-        self, 
-        translators: list[str], 
-        ocr_engines: list[str], 
+        self,
+        translators: list[str],
+        ocr_engines: list[str],
         detectors: list[str],
-        inpainters: list[str], 
-        inpaint_strategy: list[str], 
+        inpainters: list[str],
+        inpaint_strategy: list[str],
         parent=None
     ):
         super().__init__(parent)
@@ -27,20 +34,36 @@ class ToolsPage(QtWidgets.QWidget):
         translator_widget, self.translator_combo = create_title_and_combo(self.tr("Translator"), self.translators, h4=True)
         set_combo_box_width(self.translator_combo, self.translators)
 
-        ocr_widget, self.ocr_combo = create_title_and_combo(self.tr("Text Recognition"), self.ocr_engines, h4=True)
-        set_combo_box_width(self.ocr_combo, self.ocr_engines)
-
         detector_widget, self.detector_combo = create_title_and_combo(self.tr("Text Detector"), self.detectors, h4=True)
         set_combo_box_width(self.detector_combo, self.detectors)
+        self.detector_help_label = MLabel().secondary()
+        self.detector_help_label.setWordWrap(True)
+
+        ocr_widget, self.ocr_combo = create_title_and_combo(self.tr("Text Recognition"), self.ocr_engines, h4=True)
+        set_combo_box_width(self.ocr_combo, self.ocr_engines)
+        self.ocr_help_label = MLabel().secondary()
+        self.ocr_help_label.setWordWrap(True)
 
         inpainting_label = MLabel(self.tr("Image Cleaning")).h4()
         inpainter_widget, self.inpainter_combo = create_title_and_combo(self.tr("Inpainter"), self.inpainters, h4=False)
         set_combo_box_width(self.inpainter_combo, self.inpainters)
         self.inpainter_combo.setCurrentText(self.tr("AOT"))
+        self.inpainter_help_label = MLabel().secondary()
+        self.inpainter_help_label.setWordWrap(True)
 
         inpaint_strategy_widget, self.inpaint_strategy_combo = create_title_and_combo(self.tr("HD Strategy"), self.inpaint_strategy, h4=False)
         set_combo_box_width(self.inpaint_strategy_combo, self.inpaint_strategy)
         self.inpaint_strategy_combo.setCurrentText(self.tr("Resize"))
+
+        self.model_advice_label = MLabel(
+            self.tr("Selection guide: start with RT-DETR-v2 + Default OCR + AOT or LaMa. Switch OCR first when text is wrong; switch inpainting first when cleanup looks bad.")
+        ).secondary()
+        self.model_advice_label.setWordWrap(True)
+
+        self.download_selected_models_button = MPushButton(self.tr("Download Selected Local Models"))
+        self.download_selected_models_button.small()
+        self.model_download_status_label = MLabel("").secondary()
+        self.model_download_status_label.setWordWrap(True)
 
         # HD Strategy detail widgets
         self.hd_strategy_widgets = QtWidgets.QWidget()
@@ -99,28 +122,50 @@ class ToolsPage(QtWidgets.QWidget):
         self.resize_widget.show()
         self.crop_widget.hide()
         self.inpaint_strategy_combo.currentIndexChanged.connect(self._update_hd_strategy_widgets)
-
+        self.detector_combo.currentTextChanged.connect(self._update_help_texts)
+        self.ocr_combo.currentTextChanged.connect(self._update_help_texts)
+        self.inpainter_combo.currentTextChanged.connect(self._update_help_texts)
 
         self.use_gpu_checkbox = MCheckBox(self.tr("Use GPU"))
         if not is_gpu_available():
             self.use_gpu_checkbox.setVisible(False)
 
-
         layout.addWidget(translator_widget)
         layout.addSpacing(10)
         layout.addWidget(detector_widget)
+        layout.addWidget(self.detector_help_label)
         layout.addSpacing(10)
         layout.addWidget(ocr_widget)
+        layout.addWidget(self.ocr_help_label)
         layout.addSpacing(10)
         layout.addWidget(inpainting_label)
         layout.addWidget(inpainter_widget)
+        layout.addWidget(self.inpainter_help_label)
         layout.addWidget(inpaint_strategy_widget)
         layout.addWidget(self.hd_strategy_widgets)
+        layout.addSpacing(10)
+        layout.addWidget(self.model_advice_label)
+        layout.addWidget(self.download_selected_models_button)
+        layout.addWidget(self.model_download_status_label)
         layout.addSpacing(10)
         layout.addWidget(self.use_gpu_checkbox)
         layout.addStretch(1)
 
         self._update_hd_strategy_widgets(self.inpaint_strategy_combo.currentIndex())
+        self._update_help_texts()
+
+    def _normalize(self, value: str) -> str:
+        owner = self.parent()
+        mappings = getattr(owner, 'value_mappings', {})
+        return mappings.get(value, value)
+
+    def _update_help_texts(self):
+        detector_key = self._normalize(self.detector_combo.currentText())
+        ocr_key = self._normalize(self.ocr_combo.currentText())
+        inpainter_key = self._normalize(self.inpainter_combo.currentText())
+        self.detector_help_label.setText(get_detector_help(detector_key))
+        self.ocr_help_label.setText(get_ocr_help(ocr_key))
+        self.inpainter_help_label.setText(get_inpainter_help(inpainter_key))
 
     def _update_hd_strategy_widgets(self, index: int):
         strategy = self.inpaint_strategy_combo.itemText(index)
