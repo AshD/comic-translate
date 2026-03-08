@@ -9,6 +9,7 @@ import threading
 import warnings
 import zipfile
 from PIL import Image
+from PySide6.QtCore import QSettings
 
 # PDF pages rendered at high DPI can legitimately exceed Pillow's default
 # decompression-bomb warning threshold in this desktop workflow.
@@ -351,6 +352,17 @@ def _materialize_pdf_page(file_path: str, page_index: int, output_path: str) -> 
 
 
 PDF_RENDER_DPI = 300
+PDF_RENDER_DPI_OPTIONS = {75, 150, 220, 300}
+
+
+def get_pdf_render_dpi() -> int:
+    settings = QSettings("ComicLabs", "ComicTranslate")
+    settings.beginGroup('export')
+    dpi = settings.value('pdf_import_dpi', PDF_RENDER_DPI, type=int)
+    settings.endGroup()
+    if dpi in PDF_RENDER_DPI_OPTIONS:
+        return int(dpi)
+    return PDF_RENDER_DPI
 
 
 def _materialize_pdf_page_from_page(page, output_path: str) -> bool:
@@ -359,7 +371,7 @@ def _materialize_pdf_page_from_page(page, output_path: str) -> bool:
         os.makedirs(out_dir, exist_ok=True)
 
     try:
-        page_img = page.to_image(resolution=PDF_RENDER_DPI)
+        page_img = page.to_image(resolution=get_pdf_render_dpi())
         page_img.save(output_path)
         return True
     except Exception:

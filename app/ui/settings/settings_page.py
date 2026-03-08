@@ -101,6 +101,7 @@ class SettingsPage(QtWidgets.QWidget):
             'export_raw_text': self.ui.raw_text_checkbox.isChecked(),
             'export_translated_text': self.ui.translated_text_checkbox.isChecked(),
             'export_inpainted_image': self.ui.inpainted_image_checkbox.isChecked(),
+            'pdf_import_dpi': int(str(self.ui.pdf_import_dpi_combo.currentText()).split()[0]),
             'project_autosave_enabled': autosave_enabled,
             'project_autosave_interval_min': int(self.ui.project_autosave_interval_spinbox.value()),
             'project_autosave_folder': autosave_folder,
@@ -310,6 +311,8 @@ class SettingsPage(QtWidgets.QWidget):
         self.ui.raw_text_checkbox.setChecked(settings.value('export_raw_text', False, type=bool))
         self.ui.translated_text_checkbox.setChecked(settings.value('export_translated_text', False, type=bool))
         self.ui.inpainted_image_checkbox.setChecked(settings.value('export_inpainted_image', False, type=bool))
+        pdf_import_dpi = settings.value('pdf_import_dpi', 300, type=int)
+        self.ui.pdf_import_dpi_combo.setCurrentText(self.tr(f"{pdf_import_dpi} DPI"))
         autosave_enabled = settings.value('project_autosave_enabled', False, type=bool)
         owner = self.parent()
         title_bar = getattr(owner, "title_bar", None)
