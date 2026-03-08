@@ -40,6 +40,21 @@ def _open_url(url: str, *, headers: Optional[dict] = None, timeout: Optional[flo
             pass
 
 
+def _safe_stderr_write(message: str) -> None:
+    try:
+        if sys.stderr:
+            sys.stderr.write(message)
+    except OSError:
+        pass
+
+
+def _safe_stderr_flush() -> None:
+    try:
+        if sys.stderr:
+            sys.stderr.flush()
+    except OSError:
+        pass
+
 def _format_size(num_bytes: int) -> str:
     if num_bytes < 1024:
         return f"{num_bytes} B"
@@ -168,20 +183,16 @@ def download_url_to_file(
                                 bar_len = 30
                                 filled = int(bar_len * downloaded / total)
                                 bar = "#" * filled + "-" * (bar_len - filled)
-                                if sys.stderr:
-                                    sys.stderr.write(
-                                        f"\r[{bar}] {pct:5.1f}% ({_format_size(downloaded)}/{_format_size(total)})"
-                                    )
+                                _safe_stderr_write(
+                                    f"\r[{bar}] {pct:5.1f}% ({_format_size(downloaded)}/{_format_size(total)})"
+                                )
                             else:
-                                if sys.stderr:
-                                    sys.stderr.write(f"\rDownloaded {_format_size(downloaded)}")
+                                _safe_stderr_write(f"\rDownloaded {_format_size(downloaded)}")
                             
-                            if sys.stderr:
-                                sys.stderr.flush()
+                            _safe_stderr_flush()
 
             if progress:
-                if sys.stderr:
-                    sys.stderr.write("\n")
+                _safe_stderr_write("\n")
 
             # Hash verification
             if sha256 and hash_prefix:
@@ -208,8 +219,7 @@ def download_url_to_file(
             if not is_retryable(e) or attempt >= max_retries:
                 # Give final newline to keep terminal sane if progress was mid-line
                 if progress:
-                    if sys.stderr:
-                        sys.stderr.write("\n")
+                    _safe_stderr_write("\n")
                 raise
             # Backoff with jitter
             delay = base_delay * (2 ** (attempt - 1))

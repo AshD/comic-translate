@@ -65,59 +65,96 @@ Note: Some of these also have Official English Translations
 
 <img src="https://i.imgur.com/h51XJx4.jpg" width="49%"> <img src="https://i.imgur.com/sLitjUY.jpg" width="49%">
 
+## Differences From The Original Repo
+This repository has been customized from the upstream `ogkalu2/comic-translate` project for a local, source-run workflow.
+
+Current differences include:
+
+- Sign-in and account UI have been removed from the active app flow.
+- Translation is set up to work with the `Custom` translator without requiring an app account.
+- The `Custom` translator is intended for OpenAI-compatible endpoints, including local or self-hosted servers.
+- The active OCR / translation setup is focused on local use instead of hosted credit-based services.
+- PDF import has been adjusted to rasterize pages directly instead of extracting the first embedded PDF image.
+- Batch processing has been tuned for page-by-page execution so each page is rasterized, OCR'd, translated, and rendered before moving to the next page.
+- Extra logging has been added to make long-running batch jobs easier to debug from the console.
+
+If you are comparing behavior against the original repo or its screenshots/videos, some settings, account prompts, and batch-processing behavior may not match exactly.
+
 ## Installation
 ### Download
-Download and install Comic Translate for Windows and macOS from [here](https://www.comic-translate.com). 
+Download and install Comic Translate for Windows and macOS from [here](https://www.comic-translate.com).
 
->Ignore Smart Screen for Windows (Click More info > Run anyway). For macOS, after trying to open, go to Settings > Privacy and Security > Scroll down and click Open Anyway. 
+> Ignore Smart Screen for Windows (Click More info > Run anyway). For macOS, after trying to open, go to Settings > Privacy and Security > Scroll down and click Open Anyway.
 
 > Note: GPU acceleration is currently only available when running from source.
 
 ### From Source
-Alternatively, if you'd like to run the source code directly.
+Alternatively, you can run the source code directly.
 
-Install Python 3.12. Tick "Add python.exe to PATH" during the setup.
-```bash
-https://www.python.org/downloads/
-```
-Install git
-```bash
-https://git-scm.com/
-```
-Install uv
-```
-https://docs.astral.sh/uv/getting-started/installation/
+#### Required dependencies
+Install these first:
+
+- Python 3.12
+- Git
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
+
+Windows PowerShell install command for `uv`:
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-Then, in the command line
+Verify the install:
+```powershell
+uv --version
+```
+
+#### Clone and install
 ```bash
 git clone https://github.com/ogkalu2/comic-translate
 cd comic-translate
 uv init --python 3.12
-```
-and install the requirements
-```bash
 uv add -r requirements.txt --compile-bytecode
 ```
 
-To Update, run this in the comic-translate folder
+#### Optional GPU dependencies (NVIDIA)
+For GPU inference with ONNX Runtime CUDA:
+```powershell
+uv pip install --python .\.venv\Scripts\python.exe --upgrade "onnxruntime-gpu[cuda,cudnn]==1.24.3"
+```
+
+If you also want the CUDA PyTorch runtime in the same environment:
+```powershell
+uv pip install --python .\.venv\Scripts\python.exe --index-url https://download.pytorch.org/whl/cu124 torch torchvision torchaudio
+```
+
+#### Optional archive dependency for `.cbr`
+If you want to open `.cbr` files, install WinRAR or 7-Zip and add its install folder to `PATH`.
+If it is installed but not on `PATH`, you may get:
+```bash
+raise RarCannotExec("Cannot find working tool")
+```
+
+#### Updating
+From the `comic-translate` folder:
 ```bash
 git pull
-uv init --python 3.12 (Note: only run this line if you did not use uv for the first time installation)
 uv add -r requirements.txt --compile-bytecode
-```
-
-If you have an NVIDIA GPU, then it is recommended to run
-```bash
-uv pip install onnxruntime-gpu
 ```
 
 ## Usage
-In the comic-translate directory, run
+From the `comic-translate` directory, run:
 ```bash
 uv run comic.py
 ```
-This will launch the GUI
+
+This launches the PySide6 GUI.
+
+### Basic workflow
+1. Open a folder of images, archive, or PDF.
+2. Configure translation credentials in `Settings > Credentials`.
+3. Choose OCR / translation / inpainting options in Settings.
+4. Click `Translate`.
+5. When processing finishes, use `Save All` to export as `PDF`, `CBZ`, or `ZIP`.
 
 ### Tips
 * If you have a CBR file, you'll need to install Winrar or 7-Zip then add the folder it's installed to (e.g "C:\Program Files\WinRAR" for Windows) to Path. If it's installed but not to Path, you may get the error, 

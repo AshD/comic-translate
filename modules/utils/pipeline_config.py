@@ -18,6 +18,8 @@ inpaint_map = {
     "AOT": AOT,
 }
 
+REMOTE_OCR_TOOLS = {"Gemini-2.0-Flash", "Microsoft OCR"}
+
 def get_config(settings_page: SettingsPage):
     strategy_settings = settings_page.get_hd_strategy_settings()
     if strategy_settings['strategy'] == settings_page.ui.tr("Resize"):
@@ -33,19 +35,18 @@ def get_config(settings_page: SettingsPage):
 def validate_ocr(main: ComicTranslate):
     """Ensure either API credentials are set or the user is authenticated."""
     settings_page = main.settings_page
-    tr = settings_page.ui.tr
     settings = settings_page.get_all_settings()
-    credentials = settings.get('credentials', {})
     ocr_tool = settings['tools']['ocr']
 
     if not ocr_tool:
         Messages.show_missing_tool_error(main, QCoreApplication.translate("Messages", "Text Recognition model"))
         return False
-    
-    if not settings_page.is_logged_in():
+
+    # Local OCR should work without an account. Only hosted OCR tools require login.
+    if ocr_tool in REMOTE_OCR_TOOLS and not settings_page.is_logged_in():
         Messages.show_not_logged_in_error(main)
         return False
-        
+
     return True
 
 
@@ -61,10 +62,6 @@ def validate_translator(main: ComicTranslate, target_lang: str):
         Messages.show_missing_tool_error(main, QCoreApplication.translate("Messages", "Translator"))
         return False
 
-    if not settings_page.is_logged_in():
-        Messages.show_not_logged_in_error(main)
-        return False
-
     # Credential checks
     if "Custom" in translator_tool:
         # Custom requires api_key, api_url, and model to be configured LOCALLY
@@ -75,7 +72,11 @@ def validate_translator(main: ComicTranslate, target_lang: str):
             Messages.show_custom_not_configured_error(main)
             return False
         return True
-        
+
+    if not settings_page.is_logged_in():
+        Messages.show_not_logged_in_error(main)
+        return False
+
     return True
 
 def font_selected(main: ComicTranslate):

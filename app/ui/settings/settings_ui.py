@@ -14,7 +14,6 @@ from .llms_page import LlmsPage
 from .text_rendering_page import TextRenderingPage
 from .project_page import ProjectPage
 from .export_page import ExportPage
-from .account_page import AccountPage
 from .about_page import AboutPage
 
 
@@ -55,9 +54,7 @@ class SettingsPageUI(QtWidgets.QWidget):
         self.inpainters = ['LaMa', 'AOT']
         self.detectors = ['RT-DETR-v2']
         self.ocr_engines = [
-            self.tr("Default"), 
-            self.tr('Microsoft OCR'), 
-            self.tr('Gemini-2.0-Flash'), 
+            self.tr("Default"),
         ]
         self.inpaint_strategy = [self.tr('Resize'), self.tr('Original'), self.tr('Crop')]
         self.themes = [self.tr('Dark'), self.tr('Light')]
@@ -68,12 +65,6 @@ class SettingsPageUI(QtWidgets.QWidget):
         ]
         
         self.supported_translators = [
-            self.tr("Gemini-3.0-Flash"),
-            self.tr("GPT-4.1"),
-            self.tr("GPT-4.1-mini"),
-            self.tr("Claude-4.5-Sonnet"),
-            self.tr("Claude-4.5-Haiku"),
-            self.tr("Deepseek-v3"),
             self.tr("Custom"),
         ]
         
@@ -191,7 +182,6 @@ class SettingsPageUI(QtWidgets.QWidget):
         self.text_rendering_page = TextRenderingPage(parent=self)
         self.project_page = ProjectPage(parent=self)
         self.export_page = ExportPage(parent=self)
-        self.account_page = AccountPage(parent=self)
         self.about_page = AboutPage(parent=self)
 
         # Backward-compatible attribute proxies for existing SettingsPage references
@@ -231,23 +221,12 @@ class SettingsPageUI(QtWidgets.QWidget):
         self.project_autosave_interval_spinbox = self.project_page.project_autosave_interval_spinbox
         self.project_autosave_folder_input = self.project_page.project_autosave_folder_input
 
-        # Account
-        self.sign_in_button = self.account_page.sign_in_button
-        self.sign_out_button = self.account_page.sign_out_button
-        self.buy_credits_button = self.account_page.buy_credits_button
-        self.email_value_label = self.account_page.email_value_label
-        self.tier_value_label = self.account_page.tier_value_label
-        self.credits_value_label = self.account_page.credits_value_label
-        self.logged_out_widget = self.account_page.logged_out_widget
-        self.logged_in_widget = self.account_page.logged_in_widget
-        
         # System
         self.check_update_button = self.about_page.check_update_button
 
 
         # Add pages to stacked widget (order must match navbar order)
         self.stacked_widget.addWidget(self.personalization_page)
-        self.stacked_widget.addWidget(self.account_page)
         self.stacked_widget.addWidget(self.tools_page)
         self.stacked_widget.addWidget(self.llms_page)
         self.stacked_widget.addWidget(self.text_rendering_page)
@@ -301,7 +280,6 @@ class SettingsPageUI(QtWidgets.QWidget):
 
         for index, setting in enumerate([
             {"title": self.tr("Personalization"), "avatar": MPixmap(".svg")},
-            {"title": self.tr("Account"), "avatar": MPixmap(".svg")},
             {"title": self.tr("Tools"), "avatar": MPixmap(".svg")},
             {"title": self.tr("LLMs"), "avatar": MPixmap(".svg")},
             {"title": self.tr("Text Rendering"), "avatar": MPixmap(".svg")},

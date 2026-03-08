@@ -285,11 +285,13 @@ class TextController:
     def save_src_trg(self):
         source_lang = self.main.s_combo.currentText()
         target_lang = self.main.t_combo.currentText()
-        
-        if self.main.curr_img_idx >= 0:
-            current_file = self.main.image_files[self.main.curr_img_idx]
-            self.main.image_states[current_file]['source_lang'] = source_lang
-            self.main.image_states[current_file]['target_lang'] = target_lang
+
+        for image_path in self.main.image_files:
+            state = self.main.image_states.get(image_path)
+            if state is None:
+                continue
+            state['source_lang'] = source_lang
+            state['target_lang'] = target_lang
 
         target_en = self.main.lang_mapping.get(target_lang, None)
         t_direction = get_layout_direction(target_en)
@@ -297,7 +299,7 @@ class TextController:
         t_text_option.setTextDirection(t_direction)
         self.main.t_text_edit.document().setDefaultTextOption(t_text_option)
 
-        if self.main.curr_img_idx >= 0:
+        if self.main.image_files:
             self.main.mark_project_dirty()
 
     def set_src_trg_all(self):

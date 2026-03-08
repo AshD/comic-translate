@@ -38,6 +38,10 @@ class ImageStateController:
             avatar_size=(35, 50)
         )
 
+    def set_page_list_loading_enabled(self, enabled: bool):
+        if hasattr(self, 'page_list_loader') and self.page_list_loader is not None:
+            self.page_list_loader.set_paused(not enabled)
+
     def _is_content_flagged_error(self, error: str) -> bool:
         lowered = (error or "").lower()
         return (

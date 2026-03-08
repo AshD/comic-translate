@@ -118,37 +118,30 @@ def tensors_to_device(data: Any, device: str) -> Any:
     return data
 
 def get_providers(device: Optional[str] = None) -> list[Any]:
-    """Return a providers list for ONNXRuntime (optionally with provider options).
+    """Return an ONNXRuntime provider list for the requested device.
 
-    Rules:
-    - If device is the string 'cpu' (case-insensitive) -> return ['CPUExecutionProvider']
-    - Otherwise return available providers with options for certain GPU providers
-    - If no providers are available, fall back to ['CPUExecutionProvider']
+    Default GPU behavior prefers CUDA directly and avoids TensorRT unless it is
+    explicitly requested, because many Windows installs expose the TensorRT EP
+    without the required runtime DLLs.
     """
     try:
         available = ort.get_available_providers()
     except Exception:
         available = []
 
-    if device and isinstance(device, str) and device.lower() == 'cpu':
+    normalized = device.lower() if isinstance(device, str) else None
+
+    if normalized == 'cpu':
         return ['CPUExecutionProvider']
 
     if not available:
         return ['CPUExecutionProvider']
 
-    
-    # Use user data directory for cache
-    base_models_dir = os.path.join(get_user_data_dir(), "models")
-    
-    # OpenVINO cache
+    base_models_dir = os.path.join(get_user_data_dir(), 'models')
     ov_cache_dir = os.path.join(base_models_dir, 'onnx-gpu-cache', 'openvino')
     os.makedirs(ov_cache_dir, exist_ok=True)
-
-    # TensorRT cache
     trt_cache_dir = os.path.join(base_models_dir, 'onnx-gpu-cache', 'tensorrt')
     os.makedirs(trt_cache_dir, exist_ok=True)
-
-    # CoreML cache
     coreml_cache_dir = os.path.join(base_models_dir, 'onnx-gpu-cache', 'coreml')
     os.makedirs(coreml_cache_dir, exist_ok=True)
 
@@ -164,15 +157,38 @@ def get_providers(device: Optional[str] = None) -> list[Any]:
         },
         'CoreMLExecutionProvider': {
             'ModelCacheDirectory': coreml_cache_dir,
-        }
+        },
     }
 
+    def configure(provider_name: str) -> Any:
+        if provider_name in provider_options:
+            return (provider_name, provider_options[provider_name])
+        return provider_name
+
+    if normalized == 'cuda' and 'CUDAExecutionProvider' in available:
+        return ['CUDAExecutionProvider', 'CPUExecutionProvider']
+
+    if normalized == 'tensorrt' and 'TensorrtExecutionProvider' in available:
+        providers = [configure('TensorrtExecutionProvider')]
+        if 'CUDAExecutionProvider' in available:
+            providers.append('CUDAExecutionProvider')
+        providers.append('CPUExecutionProvider')
+        return providers
+
+    if normalized == 'coreml' and 'CoreMLExecutionProvider' in available:
+        return [configure('CoreMLExecutionProvider'), 'CPUExecutionProvider']
+
+    if normalized == 'openvino' and 'OpenVINOExecutionProvider' in available:
+        return [configure('OpenVINOExecutionProvider'), 'CPUExecutionProvider']
+
     configured: list[Any] = []
-    for p in available:
-        if p in provider_options:
-            configured.append((p, provider_options[p]))
-        else:
-            configured.append(p)
+    for provider_name in available:
+        if provider_name == 'TensorrtExecutionProvider':
+            continue
+        configured.append(configure(provider_name))
+
+    if 'CPUExecutionProvider' not in [p[0] if isinstance(p, tuple) else p for p in configured]:
+        configured.append('CPUExecutionProvider')
 
     return configured
 

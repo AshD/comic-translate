@@ -1,5 +1,6 @@
 import json
 import hashlib
+import threading
 
 from .base import TranslationEngine
 from .microsoft import MicrosoftTranslation
@@ -10,14 +11,13 @@ from .llm.claude import ClaudeTranslation
 from .llm.gemini import GeminiTranslation
 from .llm.deepseek import DeepseekTranslation
 from .llm.custom import CustomTranslation
-from .user import UserTranslator
-from app.account.auth.token_storage import get_token
 
 
 class TranslationFactory:
     """Factory for creating appropriate translation engines based on settings."""
     
     _engines = {}  # Cache of created engines
+    _lock = threading.RLock()
     
     # Map traditional translation services to their engine classes
     TRADITIONAL_ENGINES = {
@@ -54,32 +54,25 @@ class TranslationFactory:
         # Create a cache key based on translator and language pair
         cache_key = cls._create_cache_key(translator_key, source_lang, target_lang, settings)
         
-        # Return cached engine if available
-        if cache_key in cls._engines:
-            return cls._engines[cache_key]
-        
-        # Determine engine class and create engine
-        engine_class = cls._get_engine_class(translator_key)
-        engine = engine_class()
-        
-        # Initialize with appropriate parameters
-        if translator_key not in cls.TRADITIONAL_ENGINES or isinstance(engine, UserTranslator):
-            engine.initialize(settings, source_lang, target_lang, translator_key)
-        else:
-            engine.initialize(settings, source_lang, target_lang)
-        
-        # Cache the engine
-        cls._engines[cache_key] = engine
-        return engine
+        with cls._lock:
+            if cache_key in cls._engines:
+                return cls._engines[cache_key]
+
+            engine_class = cls._get_engine_class(translator_key)
+            engine = engine_class()
+
+            if translator_key not in cls.TRADITIONAL_ENGINES:
+                engine.initialize(settings, source_lang, target_lang, translator_key)
+            else:
+                engine.initialize(settings, source_lang, target_lang)
+
+            cls._engines[cache_key] = engine
+            return engine
     
 
     @classmethod
     def _get_engine_class(cls, translator_key: str):
         """Get the appropriate engine class based on translator key."""
-
-        access_token = get_token("access_token")
-        if access_token and translator_key not in ['Custom']:
-            return UserTranslator
 
         # First check if it's a traditional translation engine (exact match)
         if translator_key in cls.TRADITIONAL_ENGINES:

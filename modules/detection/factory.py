@@ -1,3 +1,5 @@
+import threading
+
 from .base import DetectionEngine
 from .rtdetr_v2_onnx import RTDetrV2ONNXDetection
 from ..utils.device import resolve_device, torch_available
@@ -7,6 +9,7 @@ class DetectionEngineFactory:
     """Factory for creating appropriate detection engines based on settings."""
     
     _engines = {}  # Cache of created engines
+    _lock = threading.RLock()
     
     @classmethod
     def create_engine(
@@ -30,22 +33,17 @@ class DetectionEngineFactory:
         device = resolve_device(settings.is_gpu_enabled(), backend)
         cache_key = f"{model_name}_{backend}_{device}"
 
-        # Return cached engine if available
-        if cache_key in cls._engines:
-            return cls._engines[cache_key]
-        
-        # Map model names to factory methods
-        engine_factories = {
-            'RT-DETR-v2': cls._create_rtdetr_v2,
-        }
-        
-        # Get the appropriate factory method, defaulting to RT-DETR-v2
-        factory_method = engine_factories.get(model_name, cls._create_rtdetr_v2)
+        with cls._lock:
+            if cache_key in cls._engines:
+                return cls._engines[cache_key]
 
-        # Create and cache the engine
-        engine = factory_method(settings, backend)
-        cls._engines[cache_key] = engine
-        return engine
+            engine_factories = {
+                'RT-DETR-v2': cls._create_rtdetr_v2,
+            }
+            factory_method = engine_factories.get(model_name, cls._create_rtdetr_v2)
+            engine = factory_method(settings, backend)
+            cls._engines[cache_key] = engine
+            return engine
 
     @staticmethod
     def _create_rtdetr_v2(settings, backend: str = 'onnx'):

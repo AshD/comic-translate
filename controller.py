@@ -3,6 +3,7 @@ import requests
 import numpy as np
 import shutil
 import tempfile
+import time
 from typing import Callable, Tuple
 
 from PySide6 import QtCore, QtWidgets
@@ -111,6 +112,8 @@ class ComicTranslate(ComicTranslateUI):
         self.current_worker = None
         self._batch_active = False
         self._batch_cancel_requested = False
+        self._batch_started_at = None
+        self._batch_completed_pages = 0
 
         self.image_ctrl = ImageStateController(self)
         self.rect_item_ctrl = RectItemController(self)
@@ -505,6 +508,32 @@ class ComicTranslate(ComicTranslateUI):
     def register_batch_skip(self, image_path: str, skip_reason: str, error: str):
         self.batch_report_ctrl.register_batch_skip(image_path, skip_reason, error)
 
+    def _reset_batch_progress_tracking(self):
+        self._batch_started_at = time.time()
+        self._batch_completed_pages = 0
+
+    def _format_eta(self, total_images: int) -> str:
+        if not self._batch_started_at or total_images <= 0:
+            return ""
+        completed = max(0, self._batch_completed_pages)
+        if completed <= 0:
+            return ""
+        elapsed = time.time() - self._batch_started_at
+        if elapsed < 5:
+            return ""
+        pages_per_second = completed / max(elapsed, 1e-6)
+        if pages_per_second <= 0:
+            return ""
+        remaining_pages = max(0, total_images - completed)
+        remaining_seconds = int(remaining_pages / pages_per_second)
+        hours, remainder = divmod(remaining_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        if hours > 0:
+            return f" | ETA {hours}h {minutes}m"
+        if minutes > 0:
+            return f" | ETA {minutes}m {seconds}s"
+        return f" | ETA {seconds}s"
+
     def start_batch_process(self):
         try:
             if self._memlogger is not None:
@@ -519,7 +548,9 @@ class ComicTranslate(ComicTranslateUI):
         self.image_ctrl.clear_page_skip_errors_for_paths(self.image_files)
         self._start_batch_report(self.image_files)
         self._batch_active = True
+        self.image_ctrl.set_page_list_loading_enabled(False)
         self._batch_cancel_requested = False
+        self._reset_batch_progress_tracking()
         self.translate_button.setEnabled(False)
         self.cancel_button.setEnabled(True)
         self.save_as_project_button.setEnabled(False)
@@ -556,12 +587,15 @@ class ComicTranslate(ComicTranslateUI):
         self._start_batch_report(selected_paths)
         self.selected_batch = selected_paths
 
+        self.image_ctrl.set_page_list_loading_enabled(False)
+
         # disable UI & run
         if self.manual_radio.isChecked():
             self.automatic_radio.setChecked(True)
             self.batch_mode_selected()
         self._batch_active = True
         self._batch_cancel_requested = False
+        self._reset_batch_progress_tracking()
         self.translate_button.setEnabled(False)
         self.cancel_button.setEnabled(True)
         self.save_as_project_button.setEnabled(False)
@@ -595,7 +629,10 @@ class ComicTranslate(ComicTranslateUI):
         was_cancelled = self._batch_cancel_requested
         report = self._finalize_batch_report(was_cancelled)
         self._batch_active = False
+        self.image_ctrl.set_page_list_loading_enabled(True)
         self._batch_cancel_requested = False
+        self._batch_started_at = None
+        self._batch_completed_pages = 0
         self.progress_bar.setVisible(False)
         self.translate_button.setEnabled(True)
         self.cancel_button.setEnabled(True)
@@ -658,7 +695,6 @@ class ComicTranslate(ComicTranslateUI):
         if self._batch_cancel_requested:
             return
 
-        # Assign weights to image processing and archiving (adjust as needed)
         image_processing_weight = 0.9
         archiving_weight = 0.1
 
@@ -666,27 +702,40 @@ class ComicTranslate(ComicTranslateUI):
         total_archives = len(archive_info_list)
         image_list = self.selected_batch if self.selected_batch else self.image_files
 
+        if index < total_images and step >= total_steps:
+            self._batch_completed_pages = max(self._batch_completed_pages, index + 1)
+
+        eta_suffix = self._format_eta(total_images)
         if change_name:
             if index < total_images:
                 im_path = image_list[index]
                 im_name = os.path.basename(im_path)
-                self.progress_bar.setFormat(QCoreApplication.translate('Messages', 'Processing:') + f" {im_name} . . . %p%")
+                self.progress_bar.setFormat(
+                    QCoreApplication.translate('Messages', 'Processing:') + f" {im_name} . . . %p%{eta_suffix}"
+                )
             else:
                 archive_index = index - total_images
-                self.progress_bar.setFormat(QCoreApplication.translate('Messages', 'Archiving:') + f" {archive_index + 1}/{total_archives} . . . %p%")
+                self.progress_bar.setFormat(
+                    QCoreApplication.translate('Messages', 'Archiving:') + f" {archive_index + 1}/{total_archives} . . . %p%"
+                )
+        elif index < total_images:
+            current_text = self.progress_bar.format()
+            if eta_suffix:
+                base_text = current_text.split(' | ETA ')[0]
+                self.progress_bar.setFormat(f"{base_text}{eta_suffix}")
 
         if index < total_images:
-            # Image processing progress
-            task_progress = (index / total_images) * image_processing_weight
-            step_progress = (step / total_steps) * (1 / total_images) * image_processing_weight
+            page_fraction = max(1, index + (step / max(1, total_steps))) / max(1, total_images)
+            progress = page_fraction * image_processing_weight * 100
         else:
-            # Archiving progress
             archive_index = index - total_images
-            task_progress = image_processing_weight + (archive_index / total_archives) * archiving_weight
-            step_progress = (step / total_steps) * (1 / total_archives) * archiving_weight
+            archive_fraction = max(0.0, archive_index + (step / max(1, total_steps))) / max(1, total_archives)
+            progress = (image_processing_weight + archive_fraction * archiving_weight) * 100
 
-        progress = (task_progress + step_progress) * 100 
-        self.progress_bar.setValue(int(progress))
+        progress_value = int(progress)
+        if total_images > 0 and index < total_images:
+            progress_value = max(1, progress_value)
+        self.progress_bar.setValue(min(100, progress_value))
 
     def on_download_event(self, status: str, name: str):
         """Show a loading-type MMessage while models/files are being downloaded."""

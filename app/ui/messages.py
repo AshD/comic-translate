@@ -93,13 +93,12 @@ class Messages:
     def show_custom_not_configured_error(parent):
         """
         Show an error message when Custom is selected without proper configuration.
-        Guides users to use the Credits system instead.
         """
         MMessage.error(
             text=QCoreApplication.translate(
                 "Messages",
-                "Custom requires advanced API configuration. Most users should use the Credits system instead.\n"
-                "Please sign in via Settings > Account to use credits, or configure Custom API settings in Settings > Advanced."
+                "Custom requires an API key, endpoint URL, and model name.\n"
+                "Configure them in Settings > Credentials before running translation."
             ),
             parent=parent,
             duration=None,

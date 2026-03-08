@@ -137,7 +137,8 @@ def main():
     
     # Configure logging
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
+        format='%(asctime)s %(levelname)s:%(name)s:%(message)s',
     )
     
     if sys.platform == "win32":

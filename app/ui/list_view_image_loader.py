@@ -93,6 +93,7 @@ class ListViewImageLoader:
     def __init__(self, list_widget: QListWidget, avatar_size: tuple = (60, 80)):
         self.list_widget = list_widget
         self.avatar_size = QSize(avatar_size[0], avatar_size[1])
+        self._paused = False
         
         # Track loaded images and visible items
         self.loaded_images: dict[int, QPixmap] = {}
@@ -147,6 +148,14 @@ class ListViewImageLoader:
         
         if self.worker:
             self.worker.clear_queue()
+
+    def set_paused(self, paused: bool):
+        """Pause background thumbnail materialization during batch work."""
+        self._paused = paused
+        if paused and self.worker:
+            self.worker.clear_queue()
+        elif not paused and self.file_paths:
+            self._schedule_update()
             
     def _on_scroll(self):
         """Handle scroll events with debouncing."""
@@ -154,11 +163,13 @@ class ListViewImageLoader:
         
     def _schedule_update(self):
         """Schedule an update of visible items."""
+        if self._paused:
+            return
         self.update_timer.start(100)  # 100ms debounce
         
     def _update_visible_items(self):
         """Update which items are visible and manage loading/unloading."""
-        if not self.list_widget or not self.file_paths:
+        if self._paused or not self.list_widget or not self.file_paths:
             return
             
         # Get visible item indices
@@ -204,6 +215,8 @@ class ListViewImageLoader:
         
     def _queue_image_load(self, index: int):
         """Queue an image for loading."""
+        if self._paused:
+            return
         if 0 <= index < len(self.file_paths):
             file_path = self.file_paths[index]
             if ensure_path_materialized(file_path) or os.path.exists(file_path):
@@ -263,6 +276,8 @@ class ListViewImageLoader:
                     
     def force_load_image(self, index: int):
         """Force load an image immediately (for current selection)."""
+        if self._paused:
+            return
         if (0 <= index < len(self.file_paths) and 
             index not in self.loaded_images):
             self._queue_image_load(index)

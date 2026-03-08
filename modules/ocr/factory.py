@@ -1,8 +1,8 @@
 import json
 import hashlib
+import threading
 
 from modules.utils.device import resolve_device, torch_available
-from app.account.auth.token_storage import get_token
 from .base import OCREngine
 from .microsoft_ocr import MicrosoftOCR
 from .google_ocr import GoogleOCR
@@ -11,13 +11,13 @@ from .ppocr import PPOCRv5Engine
 from .manga_ocr.onnx_engine import MangaOCREngineONNX
 from .pororo.onnx_engine import PororoOCREngineONNX  
 from .gemini_ocr import GeminiOCR
-from .user_ocr import UserOCR
 
 
 class OCRFactory:
     """Factory for creating appropriate OCR engines based on settings."""
     
     _engines = {}  # Cache of created engines
+    _lock = threading.RLock()
 
     LLM_ENGINE_IDENTIFIERS = {
         "GPT": GPTOCR,
@@ -52,25 +52,13 @@ class OCRFactory:
             backend
         )
 
-        # 1) if we already made it, return it
-        if cache_key in cls._engines:
-            return cls._engines[cache_key]
+        with cls._lock:
+            if cache_key in cls._engines:
+                return cls._engines[cache_key]
 
-        # 2) For account holders using a remote  model
-        token = get_token("access_token")
-        if token and (
-            ocr_model in UserOCR.LLM_OCR_KEYS
-            or ocr_model in UserOCR.FULL_PAGE_OCR_KEYS
-        ):
-            engine = UserOCR()
-            engine.initialize(settings, source_lang_english, ocr_model)
+            engine = cls._create_new_engine(settings, source_lang_english, ocr_model, backend)
             cls._engines[cache_key] = engine
             return engine
-
-        # 3) otherwise fall back to the local factories
-        engine = cls._create_new_engine(settings, source_lang_english, ocr_model, backend)
-        cls._engines[cache_key] = engine
-        return engine
     
     @classmethod
     def _create_cache_key(

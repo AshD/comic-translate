@@ -366,22 +366,26 @@ class ONNXFontEngine(FontEngine):
             logger.error(f"Error in font detection (ONNX): {e}")
             return {"available": False}
 
+import threading
+
 class FontEngineFactory:
     _engines = {}
+    _lock = threading.RLock()
 
     @classmethod
     def create_engine(cls, settings, backend='onnx') -> FontEngine:
         device = resolve_device(settings.is_gpu_enabled() if settings else True, backend)
         cache_key = f"{backend}_{device}"
         
-        if cache_key in cls._engines:
-            return cls._engines[cache_key]
-            
-        if backend == 'onnx':
-            engine = ONNXFontEngine(settings)
-        else:
-            engine = TorchFontEngine(settings)
-            
-        engine.initialize(device=device)
-        cls._engines[cache_key] = engine
-        return engine
+        with cls._lock:
+            if cache_key in cls._engines:
+                return cls._engines[cache_key]
+
+            if backend == 'onnx':
+                engine = ONNXFontEngine(settings)
+            else:
+                engine = TorchFontEngine(settings)
+
+            engine.initialize(device=device)
+            cls._engines[cache_key] = engine
+            return engine

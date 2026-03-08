@@ -6,8 +6,14 @@ import shutil
 import tarfile
 import tempfile
 import threading
+import warnings
 import zipfile
 from PIL import Image
+
+# PDF pages rendered at high DPI can legitimately exceed Pillow's default
+# decompression-bomb warning threshold in this desktop workflow.
+Image.MAX_IMAGE_PIXELS = None
+warnings.simplefilter('ignore', Image.DecompressionBombWarning)
 
 SUPPORTED_SAVE_AS_EXTS = {'.pdf', '.cbz', '.cb7', '.zip'}
 _IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.bmp', '.webp')
@@ -344,29 +350,16 @@ def _materialize_pdf_page(file_path: str, page_index: int, output_path: str) -> 
         return _materialize_pdf_page_from_page(pdf.pages[page_index], output_path)
 
 
+PDF_RENDER_DPI = 300
+
+
 def _materialize_pdf_page_from_page(page, output_path: str) -> bool:
     out_dir = os.path.dirname(output_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
 
-    if page.images:
-        try:
-            img = page.images[0]
-            if "stream" in img:
-                image_bytes = img["stream"].get_data()
-                try:
-                    with Image.open(io.BytesIO(image_bytes)):
-                        pass
-                    with open(output_path, "wb") as image_file:
-                        image_file.write(image_bytes)
-                    return True
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
     try:
-        page_img = page.to_image()
+        page_img = page.to_image(resolution=PDF_RENDER_DPI)
         page_img.save(output_path)
         return True
     except Exception:

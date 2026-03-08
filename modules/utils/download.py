@@ -224,9 +224,12 @@ class ModelDownloader:
 
 def _download_single_file(file_url: str, file_path: str, expected_checksum: Optional[str]):
     msg = f'Downloading: "{file_url}" to {os.path.dirname(file_path)}\n'
-    if sys.stderr:
-        sys.stderr.write(msg)
-    else:
+    try:
+        if sys.stderr:
+            sys.stderr.write(msg)
+        else:
+            logger.info(msg.strip())
+    except OSError:
         logger.info(msg.strip())
     notify_download_event('start', os.path.basename(file_path))
     download_url_to_file(file_url, file_path, hash_prefix=None, progress=True)
